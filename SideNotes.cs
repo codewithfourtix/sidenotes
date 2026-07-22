@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Threading;
 
 namespace SideNotes
 {
@@ -71,6 +72,7 @@ namespace SideNotes
         TextBox _input;
         TextBlock _inputHint;
         TextBlock _countLabel;
+        TextBlock _copyLabel;
         TextBlock _pendingHeader;
         TextBlock _doneHeader;
         StackPanel _pendingPanel;
@@ -214,37 +216,54 @@ namespace SideNotes
             Grid.SetRow(scroll, 2);
             layout.Children.Add(scroll);
 
-            // Footer: export menu
-            Grid footer = new Grid();
+            // Footer: copy + export menus
+            StackPanel footer = new StackPanel();
+            footer.Orientation = Orientation.Horizontal;
             footer.Margin = new Thickness(2, 12, 2, 0);
-            TextBlock export = new TextBlock();
-            export.Text = "Export ▾";
-            export.FontSize = 12;
-            export.Foreground = TextMuted;
-            export.Cursor = Cursors.Hand;
-            export.MouseEnter += delegate { export.Foreground = TextMain; };
-            export.MouseLeave += delegate { export.Foreground = TextMuted; };
 
-            ContextMenu menu = new ContextMenu();
-            menu.PlacementTarget = export;
-            menu.Items.Add(MenuItemFor("Export all", "all"));
-            menu.Items.Add(MenuItemFor("Export pending", "pending"));
-            menu.Items.Add(MenuItemFor("Export done", "done"));
-            export.MouseLeftButtonUp += delegate { menu.IsOpen = true; };
+            _copyLabel = FooterLink("Copy ▾");
+            ContextMenu copyMenu = new ContextMenu();
+            copyMenu.PlacementTarget = _copyLabel;
+            copyMenu.Items.Add(MenuItemFor("Copy all", "all", CopyMode));
+            copyMenu.Items.Add(MenuItemFor("Copy pending", "pending", CopyMode));
+            copyMenu.Items.Add(MenuItemFor("Copy done", "done", CopyMode));
+            _copyLabel.MouseLeftButtonUp += delegate { copyMenu.IsOpen = true; };
+            footer.Children.Add(_copyLabel);
 
+            TextBlock export = FooterLink("Export ▾");
+            export.Margin = new Thickness(16, 0, 0, 0);
+            ContextMenu exportMenu = new ContextMenu();
+            exportMenu.PlacementTarget = export;
+            exportMenu.Items.Add(MenuItemFor("Export all", "all", Export));
+            exportMenu.Items.Add(MenuItemFor("Export pending", "pending", Export));
+            exportMenu.Items.Add(MenuItemFor("Export done", "done", Export));
+            export.MouseLeftButtonUp += delegate { exportMenu.IsOpen = true; };
             footer.Children.Add(export);
+
             Grid.SetRow(footer, 3);
             layout.Children.Add(footer);
 
             _root.Children.Add(_panel);
         }
 
-        MenuItem MenuItemFor(string label, string mode)
+        static TextBlock FooterLink(string text)
+        {
+            TextBlock t = new TextBlock();
+            t.Text = text;
+            t.FontSize = 12;
+            t.Foreground = TextMuted;
+            t.Cursor = Cursors.Hand;
+            t.MouseEnter += delegate { t.Foreground = TextMain; };
+            t.MouseLeave += delegate { t.Foreground = TextMuted; };
+            return t;
+        }
+
+        MenuItem MenuItemFor(string label, string mode, Action<string> action)
         {
             MenuItem mi = new MenuItem();
             mi.Header = label;
             string m = mode;
-            mi.Click += delegate { Export(m); };
+            mi.Click += delegate { action(m); };
             return mi;
         }
 
@@ -428,18 +447,10 @@ namespace SideNotes
             catch { }
         }
 
-        // ---------- Export ----------
+        // ---------- Copy / Export ----------
 
-        void Export(string mode)
+        string BuildText(string mode)
         {
-            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
-            dlg.FileName = "sidenotes-" + mode + "-" + DateTime.Now.ToString("yyyy-MM-dd") + ".md";
-            dlg.Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt";
-            _dialogOpen = true;
-            bool? ok = dlg.ShowDialog(this);
-            _dialogOpen = false;
-            if (ok != true) return;
-
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("# SideNotes — " + DateTime.Now.ToString("MMM d, yyyy h:mm tt"));
             sb.AppendLine();
@@ -463,7 +474,38 @@ namespace SideNotes
                 if (n == 0) sb.AppendLine("_(nothing done yet)_");
                 sb.AppendLine();
             }
-            try { File.WriteAllText(dlg.FileName, sb.ToString()); }
+            return sb.ToString();
+        }
+
+        void CopyMode(string mode)
+        {
+            try { Clipboard.SetText(BuildText(mode)); }
+            catch { return; }
+
+            _copyLabel.Text = "Copied ✓";
+            _copyLabel.Foreground = Accent;
+            DispatcherTimer t = new DispatcherTimer();
+            t.Interval = TimeSpan.FromMilliseconds(1400);
+            t.Tick += delegate
+            {
+                t.Stop();
+                _copyLabel.Text = "Copy ▾";
+                _copyLabel.Foreground = TextMuted;
+            };
+            t.Start();
+        }
+
+        void Export(string mode)
+        {
+            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.FileName = "sidenotes-" + mode + "-" + DateTime.Now.ToString("yyyy-MM-dd") + ".md";
+            dlg.Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt";
+            _dialogOpen = true;
+            bool? ok = dlg.ShowDialog(this);
+            _dialogOpen = false;
+            if (ok != true) return;
+
+            try { File.WriteAllText(dlg.FileName, BuildText(mode)); }
             catch (Exception ex) { MessageBox.Show("Could not save: " + ex.Message, "SideNotes"); }
         }
 
