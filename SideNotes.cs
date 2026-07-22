@@ -666,6 +666,7 @@ namespace SideNotes
             check.Cursor = Cursors.Hand;
             check.Background = item.Done ? Accent : Brushes.Transparent;
             check.BorderBrush = item.Done ? Accent : CheckEdge;
+            row.Cursor = Cursors.Hand;
             TextBlock tick = new TextBlock();
             tick.Text = "✓";
             tick.FontSize = 11;
@@ -675,13 +676,6 @@ namespace SideNotes
             tick.VerticalAlignment = VerticalAlignment.Center;
             tick.Visibility = item.Done ? Visibility.Visible : Visibility.Collapsed;
             check.Child = tick;
-            check.MouseLeftButtonUp += delegate
-            {
-                item.Done = !item.Done;
-                item.Completed = item.Done ? DateTime.Now : DateTime.MinValue;
-                Save();
-                Rebuild();
-            };
             Grid.SetColumn(check, 0);
             g.Children.Add(check);
 
@@ -704,14 +698,24 @@ namespace SideNotes
             del.VerticalAlignment = VerticalAlignment.Top;
             del.Cursor = Cursors.Hand;
             del.Visibility = Visibility.Hidden;
-            del.MouseLeftButtonUp += delegate
+            del.MouseLeftButtonUp += delegate(object s, MouseButtonEventArgs e)
             {
+                e.Handled = true; // don't let the row toggle-handler fire too
                 _items.Remove(item);
                 Save();
                 Rebuild();
             };
             Grid.SetColumn(del, 2);
             g.Children.Add(del);
+
+            // The whole row toggles done, not just the checkbox.
+            row.MouseLeftButtonUp += delegate
+            {
+                item.Done = !item.Done;
+                item.Completed = item.Done ? DateTime.Now : DateTime.MinValue;
+                Save();
+                Rebuild();
+            };
 
             row.MouseEnter += delegate
             {
