@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -89,6 +90,7 @@ namespace SideNotes
             BuildPanel();
             BuildStripe();
             ApplyDockSide();
+            Load();
             Rebuild();
 
             Deactivated += delegate { Collapse(); };
@@ -247,6 +249,58 @@ namespace SideNotes
             _root.Children.Add(_stripe);
         }
 
+        // ---------- Persistence ----------
+        // One line per item: P|D <tab> createdTicks <tab> completedTicks <tab> text
+
+        static string DataDir
+        {
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SideNotes"); }
+        }
+
+        static string DataFile
+        {
+            get { return Path.Combine(DataDir, "notes.txt"); }
+        }
+
+        void Save()
+        {
+            try
+            {
+                Directory.CreateDirectory(DataDir);
+                List<string> lines = new List<string>();
+                foreach (TodoItem it in _items)
+                {
+                    string text = it.Text.Replace("\t", " ").Replace("\r", " ").Replace("\n", " ");
+                    lines.Add((it.Done ? "D" : "P") + "\t" + it.Created.Ticks + "\t" + it.Completed.Ticks + "\t" + text);
+                }
+                File.WriteAllLines(DataFile, lines.ToArray());
+            }
+            catch { }
+        }
+
+        void Load()
+        {
+            try
+            {
+                if (!File.Exists(DataFile)) return;
+                foreach (string line in File.ReadAllLines(DataFile))
+                {
+                    string[] parts = line.Split(new char[] { '\t' }, 4);
+                    if (parts.Length < 4 || parts[3].Length == 0) continue;
+                    TodoItem it = new TodoItem();
+                    it.Done = parts[0] == "D";
+                    long created, completed;
+                    long.TryParse(parts[1], out created);
+                    long.TryParse(parts[2], out completed);
+                    it.Created = new DateTime(created);
+                    it.Completed = new DateTime(completed);
+                    it.Text = parts[3];
+                    _items.Add(it);
+                }
+            }
+            catch { }
+        }
+
         // ---------- Todo logic ----------
 
         void AddTodo()
@@ -259,6 +313,7 @@ namespace SideNotes
             it.Created = DateTime.Now;
             _items.Insert(0, it);
             _input.Clear();
+            Save();
             Rebuild();
         }
 
@@ -335,6 +390,7 @@ namespace SideNotes
             {
                 item.Done = !item.Done;
                 item.Completed = item.Done ? DateTime.Now : DateTime.MinValue;
+                Save();
                 Rebuild();
             };
             Grid.SetColumn(check, 0);
@@ -362,6 +418,7 @@ namespace SideNotes
             del.MouseLeftButtonUp += delegate
             {
                 _items.Remove(item);
+                Save();
                 Rebuild();
             };
             Grid.SetColumn(del, 2);
