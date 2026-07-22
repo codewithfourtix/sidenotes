@@ -519,7 +519,7 @@ namespace SideNotes
                 sb.AppendLine();
                 int n = 0;
                 foreach (TodoItem it in _items)
-                    if (!it.Done) { sb.AppendLine("- [ ] " + it.Text); n++; }
+                    if (!it.Done) { sb.AppendLine("- [ ] " + it.Text + Dates(it)); n++; }
                 if (n == 0) sb.AppendLine("_(nothing pending)_");
                 sb.AppendLine();
             }
@@ -529,11 +529,25 @@ namespace SideNotes
                 sb.AppendLine();
                 int n = 0;
                 foreach (TodoItem it in _items)
-                    if (it.Done) { sb.AppendLine("- [x] " + it.Text + "  — " + it.Completed.ToString("MMM d")); n++; }
+                    if (it.Done) { sb.AppendLine("- [x] " + it.Text + Dates(it)); n++; }
                 if (n == 0) sb.AppendLine("_(nothing done yet)_");
                 sb.AppendLine();
             }
             return sb.ToString();
+        }
+
+        static string Stamp(DateTime d)
+        {
+            return d.ToString("yyyy-MM-dd HH:mm");
+        }
+
+        static string Dates(TodoItem it)
+        {
+            string s = "";
+            if (it.Created.Ticks > 0) s += "added " + Stamp(it.Created);
+            if (it.Done && it.Completed.Ticks > 0)
+                s += (s.Length > 0 ? " · " : "") + "done " + Stamp(it.Completed);
+            return s.Length > 0 ? "  (" + s + ")" : "";
         }
 
         void CopyMode(string mode)
@@ -626,6 +640,14 @@ namespace SideNotes
             row.Padding = new Thickness(8, 6, 8, 6);
             row.Margin = new Thickness(0, 0, 0, 2);
             row.Background = Brushes.Transparent;
+
+            if (item.Created.Ticks > 0)
+            {
+                string tip = "Added " + item.Created.ToString("MMM d, h:mm tt");
+                if (item.Done && item.Completed.Ticks > 0)
+                    tip += "\nDone " + item.Completed.ToString("MMM d, h:mm tt");
+                row.ToolTip = tip;
+            }
 
             Grid g = new Grid();
             g.ColumnDefinitions.Add(ColAuto());
