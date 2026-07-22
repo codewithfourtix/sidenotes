@@ -18,9 +18,14 @@ namespace SideNotes
         [STAThread]
         public static void Main()
         {
+            bool created;
+            System.Threading.Mutex mutex = new System.Threading.Mutex(true, "SideNotes_SingleInstance", out created);
+            if (!created) return;
+
             Application app = new Application();
             app.ShutdownMode = ShutdownMode.OnMainWindowClose;
             app.Run(new MainWindow());
+            GC.KeepAlive(mutex);
         }
     }
 
@@ -73,6 +78,7 @@ namespace SideNotes
         TextBlock _inputHint;
         TextBlock _countLabel;
         TextBlock _copyLabel;
+        TextBlock _startupLabel;
         TextBlock _pendingHeader;
         TextBlock _doneHeader;
         StackPanel _pendingPanel;
@@ -216,10 +222,13 @@ namespace SideNotes
             Grid.SetRow(scroll, 2);
             layout.Children.Add(scroll);
 
-            // Footer: copy + export menus
+            // Footer: copy + export menus on the left, startup + quit on the right
+            Grid footerGrid = new Grid();
+            footerGrid.Margin = new Thickness(2, 12, 2, 0);
+
             StackPanel footer = new StackPanel();
             footer.Orientation = Orientation.Horizontal;
-            footer.Margin = new Thickness(2, 12, 2, 0);
+            footer.HorizontalAlignment = HorizontalAlignment.Left;
 
             _copyLabel = FooterLink("Copy ▾");
             ContextMenu copyMenu = new ContextMenu();
@@ -239,11 +248,61 @@ namespace SideNotes
             exportMenu.Items.Add(MenuItemFor("Export done", "done", Export));
             export.MouseLeftButtonUp += delegate { exportMenu.IsOpen = true; };
             footer.Children.Add(export);
+            footerGrid.Children.Add(footer);
 
-            Grid.SetRow(footer, 3);
-            layout.Children.Add(footer);
+            StackPanel right = new StackPanel();
+            right.Orientation = Orientation.Horizontal;
+            right.HorizontalAlignment = HorizontalAlignment.Right;
+
+            _startupLabel = FooterLink("");
+            RefreshStartupLabel();
+            _startupLabel.MouseLeftButtonUp += delegate { ToggleStartup(); };
+            right.Children.Add(_startupLabel);
+
+            TextBlock quit = FooterLink("quit");
+            quit.Margin = new Thickness(14, 0, 0, 0);
+            quit.MouseLeftButtonUp += delegate { Close(); };
+            right.Children.Add(quit);
+
+            footerGrid.Children.Add(right);
+            Grid.SetRow(footerGrid, 3);
+            layout.Children.Add(footerGrid);
 
             _root.Children.Add(_panel);
+        }
+
+        // ---------- Run at startup ----------
+
+        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+
+        static bool StartupEnabled()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey))
+                    return k != null && k.GetValue("SideNotes") != null;
+            }
+            catch { return false; }
+        }
+
+        void ToggleStartup()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey, true))
+                {
+                    if (k == null) return;
+                    if (StartupEnabled()) k.DeleteValue("SideNotes", false);
+                    else k.SetValue("SideNotes", "\"" + System.Reflection.Assembly.GetExecutingAssembly().Location + "\"");
+                }
+            }
+            catch { }
+            RefreshStartupLabel();
+        }
+
+        void RefreshStartupLabel()
+        {
+            _startupLabel.Text = StartupEnabled() ? "startup ✓" : "startup";
         }
 
         static TextBlock FooterLink(string text)
