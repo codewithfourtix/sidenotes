@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -57,6 +58,12 @@ namespace SideNotes
         bool _expanded = false;
         bool _dialogOpen = false;
 
+        // stripe drag state
+        bool _pressed = false;
+        bool _dragging = false;
+        double _pressX;
+        double _grabOffsetX;
+
         Grid _root;
         Border _panel;
         Border _stripe;
@@ -91,6 +98,7 @@ namespace SideNotes
 
             BuildPanel();
             BuildStripe();
+            LoadConfig();
             ApplyDockSide();
             Load();
             Rebuild();
@@ -278,9 +286,69 @@ namespace SideNotes
 
             _stripe.MouseEnter += delegate { _stripe.Opacity = 1.0; };
             _stripe.MouseLeave += delegate { _stripe.Opacity = 0.85; };
-            _stripe.MouseLeftButtonUp += delegate { Toggle(); };
+
+            // Click = toggle. Horizontal drag = move the whole thing to the other edge.
+            _stripe.MouseLeftButtonDown += delegate
+            {
+                _pressed = true;
+                _dragging = false;
+                _pressX = CursorDipX();
+                _grabOffsetX = _pressX - Left;
+                _stripe.CaptureMouse();
+            };
+            _stripe.MouseMove += delegate
+            {
+                if (!_pressed) return;
+                double cur = CursorDipX();
+                if (!_dragging && Math.Abs(cur - _pressX) > 8)
+                {
+                    _dragging = true;
+                    if (_expanded) Collapse();
+                }
+                if (_dragging)
+                {
+                    Rect wa = SystemParameters.WorkArea;
+                    double x = cur - _grabOffsetX;
+                    if (x < wa.Left) x = wa.Left;
+                    if (x > wa.Right - TotalWidth) x = wa.Right - TotalWidth;
+                    Left = x;
+                }
+            };
+            _stripe.MouseLeftButtonUp += delegate
+            {
+                _stripe.ReleaseMouseCapture();
+                bool wasDrag = _dragging;
+                _pressed = false;
+                _dragging = false;
+                if (wasDrag) SnapToNearestSide();
+                else Toggle();
+            };
 
             _root.Children.Add(_stripe);
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct POINT { public int x; public int y; }
+
+        [DllImport("user32.dll")]
+        static extern bool GetCursorPos(out POINT p);
+
+        double CursorDipX()
+        {
+            POINT p;
+            GetCursorPos(out p);
+            PresentationSource src = PresentationSource.FromVisual(this);
+            if (src == null) return p.x;
+            return src.CompositionTarget.TransformFromDevice.Transform(new Point(p.x, p.y)).X;
+        }
+
+        void SnapToNearestSide()
+        {
+            Rect wa = SystemParameters.WorkArea;
+            double center = Left + TotalWidth / 2;
+            _dockedRight = center > wa.Left + wa.Width / 2;
+            ApplyDockSide();
+            SaveConfig();
         }
 
         // ---------- Persistence ----------
@@ -294,6 +362,31 @@ namespace SideNotes
         static string DataFile
         {
             get { return Path.Combine(DataDir, "notes.txt"); }
+        }
+
+        static string ConfigFile
+        {
+            get { return Path.Combine(DataDir, "config.txt"); }
+        }
+
+        void SaveConfig()
+        {
+            try
+            {
+                Directory.CreateDirectory(DataDir);
+                File.WriteAllText(ConfigFile, _dockedRight ? "right" : "left");
+            }
+            catch { }
+        }
+
+        void LoadConfig()
+        {
+            try
+            {
+                if (File.Exists(ConfigFile))
+                    _dockedRight = File.ReadAllText(ConfigFile).Trim() != "left";
+            }
+            catch { }
         }
 
         void Save()
