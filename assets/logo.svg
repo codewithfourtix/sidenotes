@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 190" width="860" height="190" role="img" aria-label="sidenotes — animated logo: a panel slides in from the screen edge and types the word sidenotes">
+  <style>
+    .panel {
+      animation: slide 8s infinite;
+    }
+    @keyframes slide {
+      0%, 10%  { transform: translateX(880px); animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+      20%, 84% { transform: translateX(0); }
+      94%, 100% { transform: translateX(880px); }
+    }
+    .cover {
+      animation: type 8s infinite;
+    }
+    @keyframes type {
+      0%, 23%   { transform: translateX(0); animation-timing-function: steps(9, end); }
+      45%, 100% { transform: translateX(319px); }
+    }
+    .caret-move {
+      animation: type 8s infinite;
+    }
+    .caret {
+      animation: blink 8s infinite;
+    }
+    @keyframes blink {
+      0%, 45%  { opacity: 1; }
+      50%      { opacity: 0; }
+      55%      { opacity: 1; }
+      60%      { opacity: 0; }
+      65%      { opacity: 1; }
+      70%      { opacity: 0; }
+      75%, 84% { opacity: 1; }
+      85%, 100% { opacity: 0; }
+    }
+    .box {
+      animation: boxfill 8s infinite;
+    }
+    @keyframes boxfill {
+      0%, 46%   { fill: transparent; stroke: #4a4a55; }
+      50%, 100% { fill: #e8a33d; stroke: #e8a33d; }
+    }
+    .tick {
+      stroke-dasharray: 42;
+      animation: tickdraw 8s infinite;
+    }
+    @keyframes tickdraw {
+      0%, 47%   { stroke-dashoffset: 42; }
+      54%, 100% { stroke-dashoffset: 0; }
+    }
+    .sub {
+      animation: subfade 8s infinite;
+    }
+    @keyframes subfade {
+      0%, 50%   { opacity: 0; }
+      58%, 82%  { opacity: 1; }
+      90%, 100% { opacity: 0; }
+    }
+    .stripe {
+      animation: pulse 8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.75; }
+      10%      { opacity: 1; }
+      20%, 84% { opacity: 0.9; }
+    }
+    .mono { font-family: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace; }
+  </style>
+
+  <!-- the panel, sliding in from the right like the real thing -->
+  <g class="panel">
+    <rect x="2" y="8" width="836" height="174" rx="16" fill="#14141a" stroke="#2a2a33" stroke-width="1.5"/>
+
+    <!-- checkbox -->
+    <rect class="box" x="46" y="72" width="36" height="36" rx="10" stroke-width="2.5"/>
+    <path class="tick" d="M55 90 l9 10 l17 -19" fill="none" stroke="#14141a" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- the wordmark, typed on -->
+    <text class="mono" x="112" y="110" font-size="58" font-weight="600" fill="#ececf1" textLength="315" lengthAdjust="spacingAndGlyphs">sidenotes</text>
+    <!-- cover that retreats in 9 steps = typing -->
+    <rect class="cover" x="110" y="58" width="330" height="64" fill="#14141a"/>
+    <!-- caret riding the type edge -->
+    <g class="caret-move">
+      <rect class="caret" x="114" y="62" width="5" height="56" rx="2" fill="#e8a33d"/>
+    </g>
+
+    <!-- subtitle -->
+    <text class="sub mono" x="112" y="150" font-size="17" fill="#8b8b93">the todo list that lives on the edge of your screen</text>
+  </g>
+
+  <!-- the stripe: always there, on top, exactly like the app -->
+  <rect class="stripe" x="848" y="40" width="8" height="110" rx="4" fill="#e8a33d"/>
+</svg>
