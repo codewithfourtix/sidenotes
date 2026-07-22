@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 
 namespace SideNotes
@@ -129,12 +130,28 @@ namespace SideNotes
                 _stripe.HorizontalAlignment = HorizontalAlignment.Left;
                 _stripe.Margin = new Thickness(2, 0, 0, 0);
             }
-            _panelShift.X = _expanded ? 0 : HiddenX();
+            SetShiftInstant(_expanded ? 0 : HiddenX());
         }
 
         double HiddenX()
         {
             return _dockedRight ? TotalWidth : -TotalWidth;
+        }
+
+        // Kills any running animation so X can be set directly.
+        void SetShiftInstant(double x)
+        {
+            _panelShift.BeginAnimation(TranslateTransform.XProperty, null);
+            _panelShift.X = x;
+        }
+
+        void SlideTo(double x)
+        {
+            DoubleAnimation a = new DoubleAnimation(x, TimeSpan.FromMilliseconds(240));
+            CubicEase ease = new CubicEase();
+            ease.EasingMode = EasingMode.EaseOut;
+            a.EasingFunction = ease;
+            _panelShift.BeginAnimation(TranslateTransform.XProperty, a);
         }
 
         void Toggle()
@@ -145,7 +162,7 @@ namespace SideNotes
         void Expand()
         {
             _expanded = true;
-            _panelShift.X = 0;
+            SlideTo(0);
             Activate();
         }
 
@@ -153,7 +170,7 @@ namespace SideNotes
         {
             if (!_expanded) return;
             _expanded = false;
-            _panelShift.X = HiddenX();
+            SlideTo(HiddenX());
         }
     }
 }
