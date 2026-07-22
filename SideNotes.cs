@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -54,6 +55,7 @@ namespace SideNotes
 
         bool _dockedRight = true;
         bool _expanded = false;
+        bool _dialogOpen = false;
 
         Grid _root;
         Border _panel;
@@ -93,7 +95,7 @@ namespace SideNotes
             Load();
             Rebuild();
 
-            Deactivated += delegate { Collapse(); };
+            Deactivated += delegate { if (!_dialogOpen) Collapse(); };
             KeyDown += delegate(object s, KeyEventArgs e)
             {
                 if (e.Key == Key.Escape) Collapse();
@@ -127,6 +129,7 @@ namespace SideNotes
             layout.RowDefinitions.Add(RowAuto());
             layout.RowDefinitions.Add(RowAuto());
             layout.RowDefinitions.Add(RowStar());
+            layout.RowDefinitions.Add(RowAuto());
             _panel.Child = layout;
 
             // Header: title + pending count
@@ -203,7 +206,38 @@ namespace SideNotes
             Grid.SetRow(scroll, 2);
             layout.Children.Add(scroll);
 
+            // Footer: export menu
+            Grid footer = new Grid();
+            footer.Margin = new Thickness(2, 12, 2, 0);
+            TextBlock export = new TextBlock();
+            export.Text = "Export ▾";
+            export.FontSize = 12;
+            export.Foreground = TextMuted;
+            export.Cursor = Cursors.Hand;
+            export.MouseEnter += delegate { export.Foreground = TextMain; };
+            export.MouseLeave += delegate { export.Foreground = TextMuted; };
+
+            ContextMenu menu = new ContextMenu();
+            menu.PlacementTarget = export;
+            menu.Items.Add(MenuItemFor("Export all", "all"));
+            menu.Items.Add(MenuItemFor("Export pending", "pending"));
+            menu.Items.Add(MenuItemFor("Export done", "done"));
+            export.MouseLeftButtonUp += delegate { menu.IsOpen = true; };
+
+            footer.Children.Add(export);
+            Grid.SetRow(footer, 3);
+            layout.Children.Add(footer);
+
             _root.Children.Add(_panel);
+        }
+
+        MenuItem MenuItemFor(string label, string mode)
+        {
+            MenuItem mi = new MenuItem();
+            mi.Header = label;
+            string m = mode;
+            mi.Click += delegate { Export(m); };
+            return mi;
         }
 
         static RowDefinition RowAuto()
@@ -299,6 +333,45 @@ namespace SideNotes
                 }
             }
             catch { }
+        }
+
+        // ---------- Export ----------
+
+        void Export(string mode)
+        {
+            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.FileName = "sidenotes-" + mode + "-" + DateTime.Now.ToString("yyyy-MM-dd") + ".md";
+            dlg.Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt";
+            _dialogOpen = true;
+            bool? ok = dlg.ShowDialog(this);
+            _dialogOpen = false;
+            if (ok != true) return;
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("# SideNotes — " + DateTime.Now.ToString("MMM d, yyyy h:mm tt"));
+            sb.AppendLine();
+            if (mode == "all" || mode == "pending")
+            {
+                sb.AppendLine("## Pending");
+                sb.AppendLine();
+                int n = 0;
+                foreach (TodoItem it in _items)
+                    if (!it.Done) { sb.AppendLine("- [ ] " + it.Text); n++; }
+                if (n == 0) sb.AppendLine("_(nothing pending)_");
+                sb.AppendLine();
+            }
+            if (mode == "all" || mode == "done")
+            {
+                sb.AppendLine("## Done");
+                sb.AppendLine();
+                int n = 0;
+                foreach (TodoItem it in _items)
+                    if (it.Done) { sb.AppendLine("- [x] " + it.Text + "  — " + it.Completed.ToString("MMM d")); n++; }
+                if (n == 0) sb.AppendLine("_(nothing done yet)_");
+                sb.AppendLine();
+            }
+            try { File.WriteAllText(dlg.FileName, sb.ToString()); }
+            catch (Exception ex) { MessageBox.Show("Could not save: " + ex.Message, "SideNotes"); }
         }
 
         // ---------- Todo logic ----------
